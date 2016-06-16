@@ -2,3 +2,4 @@ quandl
 pykafka
 pandas
 requests
+cassandra-driver
