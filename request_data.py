@@ -9,8 +9,8 @@ import pandas as pd
 import quandl
 
 EXCHANGES = [
-    # ('FTSE', 'https://s3.amazonaws.com/static.quandl.com/tickers/FTSE100.csv',),
-    ('SP500', 'https://s3.amazonaws.com/static.quandl.com/tickers/SP500.csv',),
+    ('FTSE', 'https://s3.amazonaws.com/static.quandl.com/tickers/FTSE100.csv',),
+    # ('SP500', 'https://s3.amazonaws.com/static.quandl.com/tickers/SP500.csv',),
     # ('NASDAQ', 'https://s3.amazonaws.com/static.quandl.com/tickers/NASDAQComposite.csv',),
 ]
 
