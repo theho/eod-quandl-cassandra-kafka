@@ -37,5 +37,5 @@ def create_schema(key_space):
 
 
 if __name__ == '__main__':
-    # create_key_space('test')
-    create_schema('test')
+    create_key_space('test')
+    # create_schema('test')

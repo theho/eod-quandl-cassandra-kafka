@@ -8,7 +8,7 @@ from cassandra.cluster import Cluster
 from cassandra.query import BatchStatement
 from pykafka import KafkaClient
 
-from settings import KAFKA_ZOOKEEPER_HOST, CASSANDRA_HOST
+from settings import KAFKA_ZOOKEEPER_HOST, CASSANDRA_HOST, TOPIC
 
 cluster = Cluster([CASSANDRA_HOST])
 
@@ -22,19 +22,22 @@ for qlog in quiet_loggers:
 # TODO: multi-process
 def get_messages():
     client = KafkaClient(zookeeper_hosts=KAFKA_ZOOKEEPER_HOST)
-    topic = client.topics[b'eod.play']
-    balanced_consumer = topic.get_balanced_consumer(
+    topic = client.topics[TOPIC]
+    consumer = topic.get_balanced_consumer(
         consumer_group=b'testgroup',
-        auto_commit_enable=True,
+        # auto_commit_enable=True,
+        zookeeper_connect=KAFKA_ZOOKEEPER_HOST
     )
     logger.info('Start listening')
-    for msg in balanced_consumer:
+    while True:
+        msg = consumer.consume()
         payload = pickle.loads(msg.value)
         save_eod_data_to_db(payload)
+        consumer.commit_offsets()
 
 
 def save_eod_data_to_db(data):
-    logger.info('Received Data')
+    logger.info('Received Data: {}'.format(data['ticker']))
 
     df = data['df'].dropna()
 

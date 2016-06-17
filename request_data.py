@@ -9,12 +9,12 @@ import pandas as pd
 import quandl
 from pykafka import KafkaClient
 
-from settings import KAFKA_ZOOKEEPER_HOST
+from settings import KAFKA_ZOOKEEPER_HOST, TOPIC
 
 EXCHANGES = [
-    ('FTSE', 'https://s3.amazonaws.com/static.quandl.com/tickers/FTSE100.csv',),
+    # ('FTSE', 'https://s3.amazonaws.com/static.quandl.com/tickers/FTSE100.csv',),
     # ('????', 'https://s3.amazonaws.com/static.quandl.com/tickers/SP500.csv',),
-    # ('NASDAQ', 'https://s3.amazonaws.com/static.quandl.com/tickers/NASDAQComposite.csv',),
+    ('NASDAQ', 'https://s3.amazonaws.com/static.quandl.com/tickers/NASDAQComposite.csv',),
 ]
 
 # quieten 3rd party loggers
@@ -44,10 +44,10 @@ def get_historical_data(exch, ticker, free_code):
     logger.debug('Req: {}'.format(free_code))
 
     df = quandl.get(free_code, authtoken=os.environ['QUANDL_API_KEY'])
-    logger.debug('Recv: {}'.format(free_code))
+    logger.debug('Recv: {} ({})'.format(free_code, len(df)))
 
     client = KafkaClient(zookeeper_hosts=KAFKA_ZOOKEEPER_HOST)
-    topic = client.topics[b'eod.play']
+    topic = client.topics[TOPIC]
     with topic.get_sync_producer() as producer:
         buf = io.BytesIO()
         pickle.dump(dict(exchange=exch, ticker=ticker, quandl_code=free_code, df=df), buf)
@@ -72,6 +72,6 @@ def fetch_data():
 if __name__ == '__main__':
     FORMAT = '%(asctime)-15s - %(message)s'
     logging.basicConfig(level=logging.DEBUG)
+
     fetch_data()
 
-    # get_historical_data('x', 'asd', 'GOOG/LON_ADN')
