@@ -3,7 +3,9 @@ import pickle
 import pandas as pd
 import numpy as np
 
+from cassandra import ConsistencyLevel
 from cassandra.cluster import Cluster
+from cassandra.query import BatchStatement
 from pykafka import KafkaClient
 
 from settings import KAFKA_ZOOKEEPER_HOST, CASSANDRA_HOST
@@ -33,23 +35,25 @@ def get_messages():
 
 def save_eod_data_to_db(data):
     logger.info('Received Data')
+
+    df = data['df'].dropna()
+
+    q = """
+        INSERT INTO historical_data (exchange, ticker, eoddate, open, close, high, low, volume)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+      """
+
     session = cluster.connect('test')
-    df = data['df']
-    df = df.dropna()
-    for eoddate, row in df.iterrows():
-        exchange = data['exchange']
-        ticker = data['ticker']
-        open = row['Open']
-        close = row['Close']
-        high = row['High']
-        low = row['Low']
-        volume = row['Volume']
-        q = """
-          INSERT INTO historical_data (exchange, ticker, eoddate, open, close, high, low, volume)
-          VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-        """
-        # TODO: batch inserts
-        session.execute(q, [exchange, ticker, str(eoddate), open, close, high, low, int(volume)])
+
+    for df in np.array_split(df, len(df) / 200):
+        batch = BatchStatement(consistency_level=ConsistencyLevel.QUORUM)
+
+        for eoddate, row in df.iterrows():
+            batch.add(q, [data['exchange'], data['ticker'], str(eoddate),
+                          row['Open'], row['Close'], row['High'], row['Low'],
+                          int(row['Volume'])])
+
+        session.execute(batch)
 
     logger.info('Done')
 
