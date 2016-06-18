@@ -3,18 +3,17 @@ Snaps EOD data from Quandl and publish to Kafka Q
 """
 
 import io
-import os
-import requests
 import logging
 import pickle
 import hashlib
+import requests
 from concurrent import futures
 
 import pandas as pd
 import quandl
 from pykafka import KafkaClient
 
-from settings import KAFKA_ZOOKEEPER_HOST, TOPIC
+from settings import KAFKA_ZOOKEEPER_HOST, TOPIC, QUANDL_API_KEY
 
 EXCHANGES = [
     ('FTSE', 'https://s3.amazonaws.com/static.quandl.com/tickers/FTSE100.csv',),
@@ -26,7 +25,7 @@ EXCHANGES = [
 for qlog in ('pykafka', 'kazoo', 'requests',):
     logging.getLogger(qlog).propagate = False
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('eod.producer')
 
 
 def generate_tickers():
@@ -61,7 +60,7 @@ def get_historical_data(exch, ticker, free_code):
     """
     logger.debug('Req: {}'.format(free_code))
 
-    df = quandl.get(free_code, authtoken=os.environ['QUANDL_API_KEY'])
+    df = quandl.get(free_code, authtoken=QUANDL_API_KEY)
     logger.debug('Recv: {} ({})'.format(free_code, len(df)))
 
     client = KafkaClient(zookeeper_hosts=KAFKA_ZOOKEEPER_HOST)
@@ -94,4 +93,9 @@ if __name__ == '__main__':
     FORMAT = '%(asctime)-15s - %(message)s'
     logging.basicConfig(level=logging.DEBUG)
 
-    fetch_data()
+    qfutures = fetch_data()
+
+    # Print errors if any
+    for f in qfutures:
+        if f.exception():
+            logger.error(str(f.exception()))
