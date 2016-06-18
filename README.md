@@ -62,18 +62,31 @@ python cassandra_setup.py
 ```
 
 ## Start the Jobs !
+
 ```
 # Starts a terminal and run a consumer
 python consumer.py
 
-# Or run more!  max # consumers = topic partition size
+# More cosumers!  Max # consumers=topic partition size
 python consumer.py
 python consumer.py
 python consumer.py
 python consumer.py
-```
 
-```
 # Start a single producer
 python producer.py
 ```
+
+## TODOS
+When/If I get some time (am juggling between a few other pet-projects), a few TODOS:
+
+1. Temporal data model in Cassandra:
+	* Tracking historical changes by data provider
+	* Allowing manual retro-changes by user
+	* Allow multiple data source
+2. Multiple data-sources
+3. Materialized Views
+4. Scaling data producer to collect data in a distributed manner
+5. Test for performance with different multi-node cluster setup
+6. Dockerized the consumer/producer for easy deployment onto EC2/Kubernetes.
+7. Simple visualisation, maybe angular2
