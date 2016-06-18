@@ -1,6 +1,8 @@
+"""
+Read off Kafka and write the data into Cassandra
+"""
 import logging
 import pickle
-import pandas as pd
 import numpy as np
 
 from cassandra import ConsistencyLevel
@@ -10,9 +12,9 @@ from pykafka import KafkaClient
 
 from settings import KAFKA_ZOOKEEPER_HOST, CASSANDRA_HOST, TOPIC
 
-cluster = Cluster([CASSANDRA_HOST])
-
 logger = logging.getLogger(__name__)
+
+cluster = Cluster([CASSANDRA_HOST])
 
 quiet_loggers = ['pykafka', 'kazoo', 'requests', 'cassandra']
 for qlog in quiet_loggers:
@@ -21,11 +23,14 @@ for qlog in quiet_loggers:
 
 # TODO: multi-process
 def get_messages():
+    """
+    Fetch message off the queue and writes to DB
+    """
     client = KafkaClient(zookeeper_hosts=KAFKA_ZOOKEEPER_HOST)
     topic = client.topics[TOPIC]
     consumer = topic.get_balanced_consumer(
         consumer_group=b'testgroup',
-        # auto_commit_enable=True,
+        auto_commit_enable=True,
         zookeeper_connect=KAFKA_ZOOKEEPER_HOST
     )
     logger.info('Start listening')
@@ -37,9 +42,10 @@ def get_messages():
 
 
 def save_eod_data_to_db(data):
+    """
+    Saves Data to Cassandra in row batches
+    """
     logger.info('Received Data: {}'.format(data['ticker']))
-
-    df = data['df'].dropna()
 
     q = """
         INSERT INTO historical_data (exchange, ticker, eoddate, open, close, high, low, volume)
@@ -48,13 +54,20 @@ def save_eod_data_to_db(data):
 
     session = cluster.connect('test')
 
+    df = data['df'].dropna()
     for df in np.array_split(df, len(df) / 200):
         batch = BatchStatement(consistency_level=ConsistencyLevel.QUORUM)
 
         for eoddate, row in df.iterrows():
-            batch.add(q, [data['exchange'], data['ticker'], str(eoddate),
-                          row['Open'], row['Close'], row['High'], row['Low'],
-                          int(row['Volume'])])
+            batch.add(q, [data['exchange'],
+                          data['ticker'],
+                          str(eoddate),
+                          row['Open'],
+                          row['Close'],
+                          row['High'],
+                          row['Low'],
+                          int(row['Volume'])]
+                      )
 
         session.execute(batch)
 

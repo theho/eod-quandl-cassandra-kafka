@@ -1,8 +1,13 @@
+"""
+Snaps EOD data from Quandl and publish to Kafka Q
+"""
+
 import io
 import os
 import requests
 import logging
 import pickle
+import hashlib
 from concurrent import futures
 
 import pandas as pd
@@ -12,9 +17,9 @@ from pykafka import KafkaClient
 from settings import KAFKA_ZOOKEEPER_HOST, TOPIC
 
 EXCHANGES = [
-    # ('FTSE', 'https://s3.amazonaws.com/static.quandl.com/tickers/FTSE100.csv',),
-    # ('????', 'https://s3.amazonaws.com/static.quandl.com/tickers/SP500.csv',),
-    ('NASDAQ', 'https://s3.amazonaws.com/static.quandl.com/tickers/NASDAQComposite.csv',),
+    ('FTSE', 'https://s3.amazonaws.com/static.quandl.com/tickers/FTSE100.csv',),
+    # ('????', 'https:/ /s3.amazonaws.com/static.quandl.com/tickers/SP500.csv',),
+    # ('NASDAQ', 'https://s3.amazonaws.com/static.quandl.com/tickers/NASDAQComposite.csv',),
 ]
 
 # quieten 3rd party loggers
@@ -25,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 
 def generate_tickers():
+    """
+    Generate tickers by reading from a list of tickers from the web.
+    """
     logger.debug('generate_tickers()')
 
     for exch, url in EXCHANGES:
@@ -40,7 +48,17 @@ def generate_tickers():
             continue
 
 
+def my_partitioner(partitions, key):
+    """
+    Partitioner function to hash keys into n partitions
+    """
+    return partitions[int(hashlib.md5(key).hexdigest(), 16) % len(partitions)]
+
+
 def get_historical_data(exch, ticker, free_code):
+    """
+    Request historical data from Quandl and publish to Kafka.
+    """
     logger.debug('Req: {}'.format(free_code))
 
     df = quandl.get(free_code, authtoken=os.environ['QUANDL_API_KEY'])
@@ -48,16 +66,19 @@ def get_historical_data(exch, ticker, free_code):
 
     client = KafkaClient(zookeeper_hosts=KAFKA_ZOOKEEPER_HOST)
     topic = client.topics[TOPIC]
-    with topic.get_sync_producer() as producer:
+
+    with topic.get_sync_producer(partitioner=my_partitioner) as producer:
         buf = io.BytesIO()
         pickle.dump(dict(exchange=exch, ticker=ticker, quandl_code=free_code, df=df), buf)
-        producer.produce(buf.getvalue())
+        producer.produce(buf.getvalue(), partition_key=bytes(ticker, 'utf-8'))
         logger.info('Published: {}'.format(free_code))
-
     return exch, ticker, free_code, df
 
 
 def fetch_data():
+    """
+    Main method
+    """
     quandl_futures = []
     with futures.ThreadPoolExecutor(max_workers=20) as e:
         for exch, ticker, free_code in generate_tickers():
@@ -74,4 +95,3 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     fetch_data()
-
